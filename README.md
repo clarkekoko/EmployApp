@@ -23,7 +23,7 @@ Before you begin, ensure you have the following installed:
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/yourusername/employ-app.git
+git clone https://github.com/clarkekoko/EmployApp.git
 cd employ-app
 ```
 
