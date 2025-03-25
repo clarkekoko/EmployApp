@@ -20,11 +20,10 @@ Before you begin, ensure you have the following installed:
 
 ## 🚀 Installation
 
-1. **Clone the repository**
+1. **Download Release**
 
 ```bash
-git clone https://github.com/clarkekoko/EmployApp.git
-cd employ-app
+From the releases, download the V1 version
 ```
 
 2. **Install dependencies**
