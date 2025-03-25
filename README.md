@@ -80,15 +80,6 @@ employ-app/
 └── package.json          # Dependencies
 ```
 
-## 🛠️ Development Workflow
-
-### Branching Strategy
-
-We follow the Git Flow workflow:
-
-- `main`: Production-ready code
-- `development`: Integration branch for features
-
 
 ## 👥 Contributors
 
