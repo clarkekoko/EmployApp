@@ -1,38 +1,62 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
-import { MapPin, Clock, DollarSign, Calendar, GraduationCap, MessageSquare, Mail, Phone, ArrowLeft, Facebook, Instagram, Twitter, Linkedin } from 'lucide-react-native';
-import { WebView } from 'react-native-webview';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { getJobById, Job } from '../../services/jobService';
-import { Platform } from 'react-native';
-import MapView from 'react-native-maps';
-import { Marker } from 'react-native-maps';9
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  Linking,
+} from "react-native";
+import { useLocalSearchParams, router } from "expo-router";
+import {
+  MapPin,
+  Clock,
+  DollarSign,
+  Calendar,
+  GraduationCap,
+  MessageSquare,
+  Mail,
+  Phone,
+  ArrowLeft,
+  Facebook,
+  Instagram,
+  Twitter,
+  Linkedin,
+} from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import { getJobById, Job } from "../../services/jobService";
+import { db, auth } from "../../firebaseConfig"; // Import Firebase
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { Platform } from "react-native";
+import MapView, { Marker } from "react-native-maps";
 
-// Fallback fonts for cross-platform compat1ibility
+// Fallback fonts for cross-platform compatibility
 const fontRegular = Platform.select({
-  ios: 'System',
-  android: 'Roboto',
-  web: 'system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif',
+  ios: "System",
+  android: "Roboto",
+  web: "system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif",
 });
 const fontMedium = Platform.select({
-  ios: 'System',
-  android: 'Roboto',
-  web: 'system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif',
+  ios: "System",
+  android: "Roboto",
+  web: "system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif",
 });
 const fontSemiBold = Platform.select({
-  ios: 'System',
-  android: 'Roboto',
-  web: 'system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif',
+  ios: "System",
+  android: "Roboto",
+  web: "system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif",
 });
 const fontBold = Platform.select({
-  ios: 'System',
-  android: 'Roboto',
-  web: 'system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif',
+  ios: "System",
+  android: "Roboto",
+  web: "system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif",
 });
 
-function JobLocationMap({ latitude, longitude, title }: { latitude: number; longitude: number; title: string }) {
+function JobLocationMap({ latitude, longitude, title }) {
   return (
     <View style={styles.mapContainer}>
       <MapView
@@ -44,13 +68,7 @@ function JobLocationMap({ latitude, longitude, title }: { latitude: number; long
           longitudeDelta: 0.0421,
         }}
       >
-        <Marker
-          coordinate={{
-            latitude,
-            longitude,
-          }}
-          title={title}
-        />
+        <Marker coordinate={{ latitude, longitude }} title={title} />
       </MapView>
     </View>
   );
@@ -62,6 +80,8 @@ export default function JobDetailsScreen() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(false); // Track if job is saved
 
   useEffect(() => {
     const fetchJobDetails = async () => {
@@ -71,24 +91,60 @@ export default function JobDetailsScreen() {
         const jobData = await getJobById(jobId);
         if (jobData) {
           setJob(jobData);
+          // Check if the job is already saved
+          if (userId) {
+            const savedJobRef = doc(
+              db,
+              "users",
+              userId,
+              "savedJobs",
+              jobData.id
+            );
+            const savedJobDoc = await getDoc(savedJobRef);
+            setIsSaved(savedJobDoc.exists()); // Set isSaved based on existing document
+          }
         } else {
-          setError('Job not found');
+          setError("Job not found");
         }
       } catch (err) {
-        console.error('Error fetching job:', err);
-        setError('Failed to load job details');
+        console.error("Error fetching job:", err);
+        setError("Failed to load job details");
       } finally {
         setLoading(false);
       }
     };
 
     fetchJobDetails();
-  }, [jobId]);
+  }, [jobId, userId]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserId(user.uid);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const saveJobToDatabase = async () => {
+    if (!job || !userId) return;
+
+    try {
+      const jobRef = doc(db, "users", userId, "savedJobs", job.id);
+      await setDoc(jobRef, job);
+      Alert.alert("Success", "Job saved successfully!");
+      setIsSaved(true); // Update the state to reflect that the job is now saved
+    } catch (error) {
+      console.error("Error saving job:", error);
+      Alert.alert("Error", "Failed to save job.");
+    }
+  };
 
   const handleSocialMediaPress = (url: string) => {
-    Linking.openURL(url).catch(err => {
-      console.error('Error opening URL:', err);
-      Alert.alert('Error', 'Could not open the link');
+    Linking.openURL(url).catch((err) => {
+      console.error("Error opening URL:", err);
+      Alert.alert("Error", "Could not open the link");
     });
   };
 
@@ -104,13 +160,13 @@ export default function JobDetailsScreen() {
   if (error || !job) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error || 'Job not found'}</Text>
+        <Text style={styles.errorText}>{error || "Job not found"}</Text>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
           <LinearGradient
-            colors={['#4F46E5', '#7C3AED']}
+            colors={["#4F46E5", "#7C3AED"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.gradientButton}
@@ -122,19 +178,22 @@ export default function JobDetailsScreen() {
     );
   }
 
-  // Default requirements and responsibilities if not provided
-  const requirements = job.requirements ? 
-    (typeof job.requirements === 'string' ? [job.requirements] : job.requirements) : 
-    ['No specific requirements listed'];
-  
-  const responsibilities = job.responsibilities ? 
-    (typeof job.responsibilities === 'string' ? [job.responsibilities] : job.responsibilities) : 
-    ['No specific responsibilities listed'];
+  const requirements = job.requirements
+    ? typeof job.requirements === "string"
+      ? [job.requirements]
+      : job.requirements
+    : ["No specific requirements listed"];
+
+  const responsibilities = job.responsibilities
+    ? typeof job.responsibilities === "string"
+      ? [job.responsibilities]
+      : job.responsibilities
+    : ["No specific responsibilities listed"];
 
   return (
     <ScrollView style={styles.container}>
       <LinearGradient
-        colors={['rgba(79, 70, 229, 0.1)', 'rgba(124, 58, 237, 0.05)']}
+        colors={["rgba(79, 70, 229, 0.1)", "rgba(124, 58, 237, 0.05)"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientBackground}
@@ -146,7 +205,7 @@ export default function JobDetailsScreen() {
           >
             <ArrowLeft size={24} color="#6299CAFF" />
           </TouchableOpacity>
-          
+
           <View style={styles.titleContainer}>
             <Text style={styles.title}>{job.title}</Text>
             <Text style={styles.employer}>{job.employer}</Text>
@@ -168,14 +227,20 @@ export default function JobDetailsScreen() {
           </View>
 
           {job.latitude && job.longitude && (
-            <JobLocationMap latitude={job.latitude} longitude={job.longitude} title={job.title} />
+            <JobLocationMap
+              latitude={job.latitude}
+              longitude={job.longitude}
+              title={job.title}
+            />
           )}
         </View>
 
         <View style={styles.section}>
           <BlurView intensity={50} tint="light" style={styles.blurContainer}>
             <Text style={styles.sectionTitle}>About the Role</Text>
-            <Text style={styles.description}>{job.aboutRole || job.description}</Text>
+            <Text style={styles.description}>
+              {job.aboutRole || job.description}
+            </Text>
           </BlurView>
         </View>
 
@@ -197,8 +262,10 @@ export default function JobDetailsScreen() {
             <View style={styles.infoItem}>
               <GraduationCap size={20} color="#6299CAFF" />
               <View style={styles.listContainer}>
-                {requirements.map((req: string, index: number) => (
-                  <Text key={index} style={styles.listItem}>• {req}</Text>
+                {requirements.map((req, index) => (
+                  <Text key={index} style={styles.listItem}>
+                    • {req}
+                  </Text>
                 ))}
               </View>
             </View>
@@ -209,8 +276,10 @@ export default function JobDetailsScreen() {
           <BlurView intensity={50} tint="light" style={styles.blurContainer}>
             <Text style={styles.sectionTitle}>Responsibilities</Text>
             <View style={styles.listContainer}>
-              {responsibilities.map((resp: string, index: number) => (
-                <Text key={index} style={styles.listItem}>• {resp}</Text>
+              {responsibilities.map((resp, index) => (
+                <Text key={index} style={styles.listItem}>
+                  • {resp}
+                </Text>
               ))}
             </View>
           </BlurView>
@@ -223,7 +292,9 @@ export default function JobDetailsScreen() {
               {job.contact.messenger && (
                 <View style={styles.contactItem}>
                   <MessageSquare size={20} color="#6299CAFF" />
-                  <Text style={styles.contactText}>{job.contact.messenger}</Text>
+                  <Text style={styles.contactText}>
+                    {job.contact.messenger}
+                  </Text>
                 </View>
               )}
               {job.contact.email && (
@@ -248,33 +319,41 @@ export default function JobDetailsScreen() {
               <Text style={styles.sectionTitle}>Follow Us</Text>
               <View style={styles.socialMediaContainer}>
                 {job.socialMedia.facebook && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.socialMediaButton}
-                    onPress={() => handleSocialMediaPress(job.socialMedia!.facebook!)}
+                    onPress={() =>
+                      handleSocialMediaPress(job.socialMedia.facebook)
+                    }
                   >
                     <Facebook size={24} color="#6299CAFF" />
                   </TouchableOpacity>
                 )}
                 {job.socialMedia.instagram && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.socialMediaButton}
-                    onPress={() => handleSocialMediaPress(job.socialMedia!.instagram!)}
+                    onPress={() =>
+                      handleSocialMediaPress(job.socialMedia.instagram)
+                    }
                   >
                     <Instagram size={24} color="#6299CAFF" />
                   </TouchableOpacity>
                 )}
                 {job.socialMedia.twitter && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.socialMediaButton}
-                    onPress={() => handleSocialMediaPress(job.socialMedia!.twitter!)}
+                    onPress={() =>
+                      handleSocialMediaPress(job.socialMedia.twitter)
+                    }
                   >
                     <Twitter size={24} color="#6299CAFF" />
                   </TouchableOpacity>
                 )}
                 {job.socialMedia.linkedin && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.socialMediaButton}
-                    onPress={() => handleSocialMediaPress(job.socialMedia!.linkedin!)}
+                    onPress={() =>
+                      handleSocialMediaPress(job.socialMedia.linkedin)
+                    }
                   >
                     <Linkedin size={24} color="#6299CAFF" />
                   </TouchableOpacity>
@@ -286,16 +365,18 @@ export default function JobDetailsScreen() {
 
         <View style={styles.applyContainer}>
           <TouchableOpacity
-            style={styles.applyButton}
-            onPress={() => Alert.alert('Succesfully saved!', 'Job is now saved to your profile.')}
+            style={[styles.applyButton, isSaved ? styles.disabledButton : {}]}
+            onPress={isSaved ? null : saveJobToDatabase} // Disable if already saved
           >
             <LinearGradient
-              colors={['#CBDCEB', '#BADBF7FF']}
+              colors={["#CBDCEB", "#BADBF7FF"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.gradientButton}
             >
-              <Text style={styles.applyButtonText}>Save Job</Text>
+              <Text style={styles.applyButtonText}>
+                {isSaved ? "Already Saved" : "Save Job"}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -307,7 +388,7 @@ export default function JobDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   gradientBackground: {
     flex: 1,
@@ -325,36 +406,36 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fontBold,
     fontSize: 24,
-    color: '#1a1a1a',
+    color: "#1a1a1a",
     marginBottom: 4,
   },
   employer: {
     fontFamily: fontMedium,
     fontSize: 16,
-    color: '#4F46E5',
+    color: "#4F46E5",
     marginBottom: 16,
   },
   highlights: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginBottom: 20,
   },
   highlightItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginRight: 16,
     marginBottom: 8,
   },
   highlightText: {
     fontFamily: fontMedium,
     fontSize: 14,
-    color: '#444',
+    color: "#444",
     marginLeft: 6,
   },
   mapContainer: {
     height: 250,
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginTop: 16,
   },
   map: {
@@ -366,30 +447,30 @@ const styles = StyleSheet.create({
   blurContainer: {
     padding: 16,
     borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    overflow: "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
   },
   sectionTitle: {
     fontFamily: fontSemiBold,
     fontSize: 18,
-    color: '#1a1a1a',
+    color: "#1a1a1a",
     marginBottom: 12,
   },
   description: {
     fontFamily: fontRegular,
     fontSize: 15,
-    color: '#444',
+    color: "#444",
     lineHeight: 22,
   },
   infoItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 8,
   },
   infoText: {
     fontFamily: fontRegular,
     fontSize: 15,
-    color: '#444',
+    color: "#444",
     marginLeft: 10,
     flex: 1,
   },
@@ -400,87 +481,90 @@ const styles = StyleSheet.create({
   listItem: {
     fontFamily: fontRegular,
     fontSize: 15,
-    color: '#444',
+    color: "#444",
     marginBottom: 6,
     lineHeight: 22,
   },
   contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 12,
   },
   contactText: {
     fontFamily: fontRegular,
     fontSize: 15,
-    color: '#444',
+    color: "#444",
     marginLeft: 10,
   },
   applyContainer: {
     marginTop: 24,
     marginBottom: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   applyButton: {
-    width: '100%',
+    width: "100%",
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
     elevation: 3,
-    shadowColor: '#6299CAFF',
+    shadowColor: "#6299CAFF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },
+  disabledButton: {
+    backgroundColor: "grey", // Style for disabled button
+  },
   gradientButton: {
     paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   applyButtonText: {
     fontFamily: fontBold,
     fontSize: 16,
-    color: '#fff',
+    color: "#fff",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
     padding: 20,
   },
   loadingText: {
     fontFamily: fontMedium,
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginTop: 12,
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
     padding: 20,
   },
   errorText: {
     fontFamily: fontMedium,
     fontSize: 18,
-    color: '#666',
+    color: "#666",
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   buttonText: {
     fontFamily: fontMedium,
     fontSize: 16,
-    color: '#fff',
+    color: "#fff",
   },
   socialMediaContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 20,
     marginTop: 12,
   },
   socialMediaButton: {
     padding: 12,
     borderRadius: 12,
-    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+    backgroundColor: "rgba(79, 70, 229, 0.1)",
   },
 });
